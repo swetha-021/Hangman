@@ -1,24 +1,45 @@
-import React, {useState} from "react"
+import React, { useState, useEffect } from "react"
 import clsx from "clsx"
-import words from "../words"
 import Confetti from "react-confetti"
+
 export default function Main(){
 
-    const lives = ["❤️","❤️","❤️","❤️","❤️"]
+    const lives = ["❤️", "❤️", "❤️", "❤️", "❤️"]
     const alpha = "abcdefghijklmnopqrstuvwxyz"
 
-    const [guessed,setGuessed]=useState([])
-    const [word,setWord] = useState(() => getRandomWord())
-    
-    function getRandomWord(){
-        const randomWord = words[Math.floor(Math.random() * words.length)];
-        // console.log("Chosen word:", randomWord);
-        return randomWord;
+    const [guessed, setGuessed] = useState([])
+    const [word, setWord] = useState("")
+    const [isLoading, setIsLoading] = useState(true)
+
+    function fetchNewWord() {
+        setIsLoading(true);
+        const API_URL = "https://random-word-api.herokuapp.com/word?length=7"; 
+
+        fetch(API_URL)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                setWord(data[0]); 
+                setGuessed([]);
+            })
+            .catch(error => {
+                console.error("Failed to fetch word:", error);
+                setWord("default"); 
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
     }
-    
-    const letters = word.split('').map(letter=>{
-        return letter.toUpperCase();
-    })
+
+    useEffect(() => {
+        fetchNewWord();
+    }, []); 
+
+    const letters = word ? word.split('').map(letter => letter.toUpperCase()) : [];
 
     const wrongGuessCount = guessed.filter(letter => !letters.includes(letter.toUpperCase()) ).length
     const isGameWon = word.split('').every(letter => guessed.includes(letter));
@@ -26,7 +47,9 @@ export default function Main(){
     const isGameOver = isGameWon || isGameLost
 
     function handleGuess(letter){
-        setGuessed(prevGuess=> prevGuess.includes(letter)? prevGuess :[...prevGuess, letter])  
+        if (!isGameOver && !guessed.includes(letter)) {
+            setGuessed(prevGuess => [...prevGuess, letter]);
+        }
     }
 
     const statusClassName = clsx("statusBox",{
@@ -50,15 +73,19 @@ export default function Main(){
           return (
             <>
               <h2>Game over!</h2>
-              <p>Womp Womp So close yet so far</p>
+              <p>The word was: <span style={{fontWeight: 'bold'}}>{word.toUpperCase()}</span></p>
+              <p>Womp Womp So lose yet so far</p>
             </>
           );
         }
     }
       
     function startNewGame(){
-        setWord(getRandomWord)
-        setGuessed([])
+        fetchNewWord();
+    }
+
+    if (isLoading) {
+        return <main className="loading"><h1>Loading new word... ⏳</h1></main>;
     }
 
     return(
@@ -83,12 +110,10 @@ export default function Main(){
             </section>
 
             <section className="guessArea">
-                {      
+                { 
                     letters.map((letter,index) =>{
                         const shouldRevealElements = isGameLost || guessed.includes(letter.toLowerCase())
-                        const isGuessed = guessed.includes(letter.toLowerCase());
                         return <span className="letter" key={index}>{shouldRevealElements?letter:""}</span>
-
                     })
                 }
             </section>
@@ -99,22 +124,25 @@ export default function Main(){
                         alpha.split("").map((key,index) =>{
 
                             const isGuessed = guessed.includes(key);
-                            const isCorrect = isGuessed && word.includes(key)
-                            const isWrong = isGuessed && !word.includes(key)
+                            const isCorrect = isGuessed && word.toLowerCase().includes(key)
+                            const isWrong = isGuessed && !word.toLowerCase().includes(key)
+                            
                             const className = clsx(
                                 {
                                     correct: isCorrect,
-                                    wrong : isWrong
+                                    wrong : isWrong,
+                                    guessed: isGuessed
                                 }
                             )
-                            // console.log(className)
+                            
                             return(<button 
                                 key={index} 
                                 onClick={()=>handleGuess(key)}
                                 className={className}
-                                disabled={isGameOver}
+                                disabled={isGameOver || isGuessed}
                             >{key.toUpperCase()}</button>
-                        )})
+                            )
+                        })
                     }
                 </div>
             </section>
@@ -122,7 +150,7 @@ export default function Main(){
             <section className="newGame">
                 {isGameOver && <button onClick={startNewGame} >New Game</button>}
             </section>
-           
+            
         </main>
     )
 }
